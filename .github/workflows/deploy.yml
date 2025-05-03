@@ -9,9 +9,32 @@ jobs:
   deploy:
     name: Push to VPS
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Check if required secrets are set
+        run: |
+          missing=0
+
+          check_secret() {
+            if [ -z "${1}" ]; then
+              echo "❌ $2 is NOT set"
+              missing=1
+            else
+              echo "✅ $2 is set"
+            fi
+          }
+
+          check_secret "${{ secrets.HOST }}" "HOST"
+          check_secret "${{ secrets.USERNAME }}" "USERNAME"
+          check_secret "${{ secrets.PASSWORD }}" "PASSWORD"
+
+          if [ $missing -eq 1 ]; then
+            echo "❌ One or more secrets are missing. Exiting."
+            exit 1
+          fi
 
       - name: Copy deploy script to VPS
         uses: appleboy/scp-action@v0.1.3
@@ -21,4 +44,15 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           port: 22
           source: 'deploy.sh'
-          target: '~/'
+          target: '/home/ubuntu/deploy.sh'
+
+      - name: Run deploy script on VPS
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: 22
+          script: |
+            chmod +x /home/ubuntu/deploy.sh
+            /home/ubuntu/deploy.sh
